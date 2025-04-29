@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import styled from "styled-components";
+import {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} from "@google/generative-ai";
 
+const apiKey = "AIzaSyAFXOKE8qMD6tECr9A9JT9OMPKFcrQIvp4";
+const genAI = new GoogleGenerativeAI(apiKey);
 // Slide Components with Prediction Info (unchanged)
 const Slide1 = () => (
   <Slide>
@@ -156,9 +163,43 @@ const Ml2 = () => {
 
   const [predictions, setPredictions] = useState(null);
   const [error, setError] = useState(null);
-  const [geminiResponse, setGeminiResponse] = useState({}); // Store Gemini responses for each metric
+  const [geminiResponse, setGeminiResponse] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [showTips, setShowTips] = useState(false);
+  const [tipsLoading, setTipsLoading] = useState(false);
 
-  const slides = [Slide1, Slide2, Slide3, Slide4, Slide5, Slide6]; // Predefined Slides
+  const slides = [Slide1, Slide2, Slide3, Slide4, Slide5, Slide6];
+
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+  });
+
+  const generationConfig = {
+    temperature: 1,
+    topP: 0.95,
+    topK: 64,
+    maxOutputTokens: 8192,
+    responseMimeType: "text/plain",
+  };
+
+  const safetySettings = [
+    {
+      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+      threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+      threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+      threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+      threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+  ];
 
   const handleChange = (e) => {
     setInputData({
@@ -167,74 +208,121 @@ const Ml2 = () => {
     });
   };
 
+  const getGeminiPrediction = async (inputData) => {
+    const chatSession = model.startChat({
+      generationConfig,
+      safetySettings,
+      history: [],
+    });
+
+    const prompt = `
+      Based on the following YouTube channel metrics, predict the expected performance metrics.
+      Return ONLY a JSON object with the following structure:
+      {
+        "predicted_views": number,
+        "predicted_likes": number,
+        "predicted_comments": number,
+        "predicted_average_shares": number,
+        "predicted_subscribers": number
+      }
+      
+      Channel Metrics:
+      ${JSON.stringify(inputData, null, 2)}
+      
+      Provide realistic predictions based on industry standards for similar channels.
+      Round all numbers to 2 decimal places.
+      These should be actual predictions, not dummy data.
+    `;
+
+    try {
+      const result = await chatSession.sendMessage(prompt);
+      const responseText = result.response.text();
+
+      // Extract JSON from the response
+      const jsonStart = responseText.indexOf("{");
+      const jsonEnd = responseText.lastIndexOf("}") + 1;
+      const jsonString = responseText.slice(jsonStart, jsonEnd);
+
+      return JSON.parse(jsonString);
+    } catch (error) {
+      console.error("Gemini API error:", error);
+      throw new Error("Failed to get predictions from Gemini");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setIsLoading(true);
+    setShowTips(false);
+    setGeminiResponse({});
+
     try {
-      const response = await fetch("http://localhost:5001/predict", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(inputData),
-      });
-      const data = await response.json();
-      setPredictions(data);
+      const predictions = await getGeminiPrediction(inputData);
+      setPredictions(predictions);
     } catch (error) {
-      setError("An error occurred while fetching predictions.");
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
-  const apiKey = "AIzaSyAFXOKE8qMD6tECr9A9JT9OMPKFcrQIvp4";
-  const handleGeminiRequest = async (metric) => {
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
 
-    const requestBody = {
-      prompt: {
-        text: `How can I improve my ${metric} for the content type "${inputData.content_type}"?`,
-      },
+  const getImprovementTips = async (metric) => {
+    setTipsLoading(true);
+    const chatSession = model.startChat({
+      generationConfig,
+      safetySettings,
+      history: [],
+    });
+
+    const context = {
+      content_type: inputData.content_type,
+      subscriber_count: inputData.subscriber_count,
+      target_audience_age_group: inputData.target_audience_age_group,
+      target_audience_interests: inputData.target_audience_interests,
+      currentValue: predictions ? predictions[`predicted_${metric}`] : "N/A",
+      allMetrics: inputData,
     };
 
-    fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    })
-      .then((response) => response.json())
-      .then((data) => console.log("Response:", data))
-      .catch((error) => console.error("Error:", error));
+    const prompt = `
+      As a YouTube growth expert, provide specific, actionable tips to improve ${metric} for:
+      
+      Channel Type: ${context.content_type}
+      Current ${metric}: ${context.currentValue}
+      Subscribers: ${context.subscriber_count}
+      Target Audience: ${context.target_audience_age_group}
+      Audience Interests: ${context.target_audience_interests}
+      
+      Provide 5-7 detailed strategies including:
+      1. Content optimization tips
+      2. Engagement techniques
+      3. Promotion strategies
+      4. Best posting times
+      5. Collaboration ideas
+      
+      Format as markdown with clear headings and bullet points.
+      Base suggestions on current channel metrics:
+      ${JSON.stringify(context.allMetrics, null, 2)}
+    `;
 
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-        }),
-      });
-
-      const data = await response.json();
-      const geminiText =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "No response from Gemini.";
-      setGeminiResponse((prev) => ({ ...prev, [metric]: geminiText }));
+      const result = await chatSession.sendMessage(prompt);
+      return result.response.text();
     } catch (error) {
-      setGeminiResponse((prev) => ({
-        ...prev,
-        [metric]: "Failed to fetch suggestions.",
-      }));
+      console.error("Gemini API error:", error);
+      return "Failed to get improvement suggestions. Please try again.";
+    } finally {
+      setTipsLoading(false);
     }
+  };
+
+  const handleGetTips = async () => {
+    setShowTips(true);
+  };
+
+  const handleMetricTips = async (metric) => {
+    const tips = await getImprovementTips(metric);
+    setGeminiResponse((prev) => ({ ...prev, [metric]: tips }));
   };
 
   return (
@@ -247,7 +335,7 @@ const Ml2 = () => {
         </SlidesContainer>
 
         <Form onSubmit={handleSubmit}>
-          <FormHeader>Content Prediction App</FormHeader>
+          <FormHeader>YouTube Performance Predictor</FormHeader>
           {Object.keys(inputData).map((key) => (
             <FormGroup key={key}>
               <Label htmlFor={key}>
@@ -264,7 +352,9 @@ const Ml2 = () => {
               />
             </FormGroup>
           ))}
-          <SubmitButton type="submit">Get Predictions</SubmitButton>
+          <SubmitButton type="submit" disabled={isLoading}>
+            {isLoading ? "Predicting..." : "Get Predictions"}
+          </SubmitButton>
         </Form>
       </Content>
 
@@ -273,52 +363,217 @@ const Ml2 = () => {
       {predictions && (
         <Results>
           <ResultsHeader>Prediction Results</ResultsHeader>
-          <ResultsGrid>
-            <ResultCard onClick={() => handleGeminiRequest("views")}>
-              <CardTitle>Predicted Views</CardTitle>
-              <CardValue>{predictions.predicted_views.toFixed(2)}</CardValue>
-              {geminiResponse.views && (
-                <GeminiResponse>{geminiResponse.views}</GeminiResponse>
+
+          {!showTips ? (
+            <>
+              <ResultsGrid>
+                <ResultCard>
+                  <CardTitle>Predicted Views</CardTitle>
+                  <CardValue>
+                    {predictions.predicted_views.toFixed(2)}
+                  </CardValue>
+                </ResultCard>
+                <ResultCard>
+                  <CardTitle>Predicted Likes</CardTitle>
+                  <CardValue>
+                    {predictions.predicted_likes.toFixed(2)}
+                  </CardValue>
+                </ResultCard>
+                <ResultCard>
+                  <CardTitle>Predicted Comments</CardTitle>
+                  <CardValue>
+                    {predictions.predicted_comments.toFixed(2)}
+                  </CardValue>
+                </ResultCard>
+                <ResultCard>
+                  <CardTitle>Predicted Shares</CardTitle>
+                  <CardValue>
+                    {predictions.predicted_average_shares.toFixed(2)}
+                  </CardValue>
+                </ResultCard>
+                <ResultCard>
+                  <CardTitle>Predicted Subscribers</CardTitle>
+                  <CardValue>
+                    {predictions.predicted_subscribers.toFixed(2)}
+                  </CardValue>
+                </ResultCard>
+              </ResultsGrid>
+
+              <TipsButtonContainer>
+                <TipsButton onClick={handleGetTips}>
+                  Need tips to improve your metrics?
+                </TipsButton>
+              </TipsButtonContainer>
+            </>
+          ) : (
+            <TipsSection>
+              <TipsHeader>
+                Improvement Strategies for Your {inputData.content_type} Channel
+              </TipsHeader>
+
+              <MetricSelector>
+                <MetricButton
+                  onClick={() => handleMetricTips("views")}
+                  disabled={tipsLoading}
+                >
+                  {tipsLoading && geminiResponse.views
+                    ? "Updating..."
+                    : "Views Tips"}
+                </MetricButton>
+                <MetricButton
+                  onClick={() => handleMetricTips("likes")}
+                  disabled={tipsLoading}
+                >
+                  {tipsLoading && geminiResponse.likes
+                    ? "Updating..."
+                    : "Likes Tips"}
+                </MetricButton>
+                <MetricButton
+                  onClick={() => handleMetricTips("comments")}
+                  disabled={tipsLoading}
+                >
+                  {tipsLoading && geminiResponse.comments
+                    ? "Updating..."
+                    : "Comments Tips"}
+                </MetricButton>
+                <MetricButton
+                  onClick={() => handleMetricTips("average_shares")}
+                  disabled={tipsLoading}
+                >
+                  {tipsLoading && geminiResponse.shares
+                    ? "Updating..."
+                    : "Shares Tips"}
+                </MetricButton>
+                <MetricButton
+                  onClick={() => handleMetricTips("subscribers")}
+                  disabled={tipsLoading}
+                >
+                  {tipsLoading && geminiResponse.subscribers
+                    ? "Updating..."
+                    : "Subscribers Tips"}
+                </MetricButton>
+              </MetricSelector>
+
+              {Object.keys(geminiResponse).length > 0 && (
+                <TipsContainer>
+                  {Object.entries(geminiResponse).map(([metric, tips]) => (
+                    <MetricTips key={metric}>
+                      <TipsTitle>
+                        {metric.replace(/_/g, " ").toUpperCase()} IMPROVEMENT
+                        TIPS
+                      </TipsTitle>
+                      <TipsContent
+                        dangerouslySetInnerHTML={{
+                          __html: tips.replace(/\n/g, "<br/>"),
+                        }}
+                      />
+                    </MetricTips>
+                  ))}
+                </TipsContainer>
               )}
-            </ResultCard>
-            <ResultCard onClick={() => handleGeminiRequest("likes")}>
-              <CardTitle>Predicted Likes</CardTitle>
-              <CardValue>{predictions.predicted_likes.toFixed(2)}</CardValue>
-              {geminiResponse.likes && (
-                <GeminiResponse>{geminiResponse.likes}</GeminiResponse>
-              )}
-            </ResultCard>
-            <ResultCard onClick={() => handleGeminiRequest("comments")}>
-              <CardTitle>Predicted Comments</CardTitle>
-              <CardValue>{predictions.predicted_comments.toFixed(2)}</CardValue>
-              {geminiResponse.comments && (
-                <GeminiResponse>{geminiResponse.comments}</GeminiResponse>
-              )}
-            </ResultCard>
-            <ResultCard onClick={() => handleGeminiRequest("shares")}>
-              <CardTitle>Predicted Shares</CardTitle>
-              <CardValue>
-                {predictions.predicted_average_shares.toFixed(2)}
-              </CardValue>
-              {geminiResponse.shares && (
-                <GeminiResponse>{geminiResponse.shares}</GeminiResponse>
-              )}
-            </ResultCard>
-            <ResultCard onClick={() => handleGeminiRequest("subscribers")}>
-              <CardTitle>Predicted Subscribers</CardTitle>
-              <CardValue>
-                {predictions.predicted_subscribers.toFixed(2)}
-              </CardValue>
-              {geminiResponse.subscribers && (
-                <GeminiResponse>{geminiResponse.subscribers}</GeminiResponse>
-              )}
-            </ResultCard>
-          </ResultsGrid>
+
+              <BackButton onClick={() => setShowTips(false)}>
+                Back to Predictions
+              </BackButton>
+            </TipsSection>
+          )}
         </Results>
       )}
     </Container>
   );
 };
+
+// Add these styled components to your existing styles
+const TipsButtonContainer = styled.div`
+  margin-top: 2rem;
+  text-align: center;
+`;
+
+const TipsButton = styled.button`
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: #45a049;
+  }
+`;
+
+const TipsSection = styled.div`
+  margin-top: 2rem;
+`;
+
+const TipsHeader = styled.h3`
+  color: #333;
+  text-align: center;
+  margin-bottom: 1.5rem;
+`;
+
+const MetricSelector = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+`;
+
+const MetricButton = styled.button`
+  background-color: ${(props) => (props.disabled ? "#cccccc" : "#2196F3")};
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+
+  &:hover {
+    background-color: ${(props) => (props.disabled ? "#cccccc" : "#0b7dda")};
+  }
+`;
+
+const TipsContainer = styled.div`
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 2rem;
+`;
+
+const MetricTips = styled.div`
+  margin-bottom: 1.5rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const TipsTitle = styled.h4`
+  color: #333;
+  margin-bottom: 0.5rem;
+`;
+
+const TipsContent = styled.div`
+  color: #555;
+  line-height: 1.6;
+`;
+
+const BackButton = styled.button`
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: block;
+  margin: 0 auto;
+
+  &:hover {
+    background-color: #d32f2f;
+  }
+`;
 
 const Container = styled.div`
   font-family: "Poppins", sans-serif;

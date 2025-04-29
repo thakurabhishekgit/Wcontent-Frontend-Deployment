@@ -25,7 +25,7 @@ function Ml() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:5000/get_comments_summary?videoLink=${encodeURIComponent(
+        `https://yt-comments-summary.onrender.com/get_comments_summary?videoLink=${encodeURIComponent(
           url
         )}`
       );

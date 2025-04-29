@@ -30,7 +30,7 @@ const NewCollab = () => {
     setError(null);
     setMessage(null);
 
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem("token");
     if (!token) {
       setError("User not logged in. Please login again.");
       setLoading(false);
@@ -46,7 +46,6 @@ const NewCollab = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-
       if (response.status === 200) {
         setMessage("Collaboration posted successfully!");
         setCollabData({

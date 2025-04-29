@@ -19,7 +19,7 @@ const Collaborations = () => {
   const fetchCollaborations = async () => {
     try {
       const response = await axios.get(
-        "http://localhost:3001/api/users/collabration/getCollabOfAllUsers"
+        "https://wcontent-app-latest.onrender.com/api/users/collabration/getCollabOfAllUsers"
       );
       setCollaborations(response.data);
     } catch (error) {
@@ -43,7 +43,7 @@ const Collaborations = () => {
 
     try {
       const response = await axios.post(
-        `http://localhost:3001/api/users/collabration/applyForCollab/${selectedCollaboration.id}`,
+        `https://wcontent-app-latest.onrender.com/api/users/collabration/applyForCollab/${selectedCollaboration.id}`,
         application
       );
       setSubmissionStatus("Application submitted successfully!");

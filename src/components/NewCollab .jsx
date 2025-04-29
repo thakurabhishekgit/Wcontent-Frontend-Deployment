@@ -40,7 +40,7 @@ const NewCollab = () => {
     try {
       const userId = localStorage.getItem("id");
       const response = await axios.post(
-        `http://localhost:3001/api/users/collabration/addCollab/${userId}`,
+        `https://wcontent-app-latest.onrender.com/api/users/collabration/addCollab/${userId}`,
         collabData,
         {
           headers: { Authorization: `Bearer ${token}` },

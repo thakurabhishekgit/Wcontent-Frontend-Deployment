@@ -134,7 +134,7 @@ export const getUser = () => async (dispatch) => {
     if (!id) throw new Error("User ID not found in localStorage");
 
     const response = await axios.get(
-      `http://localhost:3001/api/users/getUser/${id}`, 
+      `https://wcontent-app-latest.onrender.com/api/users/getUser/${id}`, 
       {
         withCredentials: true,
       }

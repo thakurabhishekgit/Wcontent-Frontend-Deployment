@@ -22,13 +22,16 @@ const Login = ({ handleLogin }) => {
     e.preventDefault();
 
     try {
-      const response = await fetch("http://localhost:3001/api/users/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        "https://wcontent-app-latest.onrender.com/api/users/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -52,7 +55,7 @@ const Login = ({ handleLogin }) => {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/users/request-otp?email=${encodeURIComponent(
+        `https://wcontent-app-latest.onrender.com/api/users/request-otp?email=${encodeURIComponent(
           email
         )}`,
         {
@@ -80,7 +83,7 @@ const Login = ({ handleLogin }) => {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/users/verify-otp?email=${encodeURIComponent(
+        `https://wcontent-app-latest.onrender.com/api/users/verify-otp?email=${encodeURIComponent(
           email
         )}&otp=${encodeURIComponent(otp)}`,
         {
@@ -107,21 +110,24 @@ const Login = ({ handleLogin }) => {
     e.preventDefault();
 
     try {
-      const response = await fetch("http://localhost:3001/api/users/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          email,
-          password,
-          userType,
-          channelName,
-          channelId,
-          channelURL,
-        }),
-      });
+      const response = await fetch(
+        "https://wcontent-app-latest.onrender.com/api/users/register",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            userType,
+            channelName,
+            channelId,
+            channelURL,
+          }),
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();

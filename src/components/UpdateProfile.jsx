@@ -28,7 +28,7 @@ const UpdateProfil = () => {
   const fetchUserData = async (userId, token) => {
     try {
       const response = await fetch(
-        `http://localhost:3001/api/users/getUser/${userId}`,
+        `https://wcontent-app-latest.onrender.com/api/users/getUser/${userId}`,
         {
           method: "GET",
           headers: {
@@ -70,7 +70,7 @@ const UpdateProfil = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/users/update/${userId}`,
+        `https://wcontent-app-latest.onrender.com/api/users/update/${userId}`,
         {
           method: "PUT",
           headers: {

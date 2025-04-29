@@ -20,7 +20,7 @@ const Opportunities = () => {
   const fetchOpportunities = async () => {
     try {
       const response = await axios.get(
-        "http://localhost:3001/api/users/opportunities/opportunitiesGetAll"
+        "https://wcontent-app-latest.onrender.com/api/users/opportunities/opportunitiesGetAll"
       );
       setOpportunities(response.data);
     } catch (error) {
@@ -44,7 +44,7 @@ const Opportunities = () => {
 
     try {
       const response = await axios.post(
-        `http://localhost:3001/api/users/application/opportunity/${selectedOpportunity.id}/apply`,
+        `https://wcontent-app-latest.onrender.com/api/users/application/opportunity/${selectedOpportunity.id}/apply`,
         application
       );
       setSubmissionStatus("Application submitted successfully!");
